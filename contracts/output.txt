@@ -1,0 +1,11 @@
+npx hardhat run scripts/deploy.ts --network sepolia
+WARNING: You are currently using Node.js v25.6.0, which is not supported by Hardhat. This can lead to unexpected behavior. See https://v2.hardhat.org/nodejs-versions
+
+
+[dotenv@17.3.1] injecting env (3) from .env -- tip: 🛠️  run anywhere with `dotenvx run -- yourcommand`
+[dotenv@17.3.1] injecting env (0) from .env -- tip: 🤖 agentic secret storage: https://dotenvx.com/as2
+Deploying contracts with the account: 0x7ebf380912d42d641c953807D88eE04f2aff87d5
+ComplianceRegistry deployed to: 0xE83129E24A74E8Cee633Bd093643720287D1C062
+Gold Token deployed to: 0x94024b53B66abE1f9CA70deaDbD545AD049e673e
+DiamondCollection deployed to: 0x259B4B5B8fB90795f847479ac4e7c8742e6b968d
+SimpleOracle deployed to: 0x7a9537c969F3aF87A7F8E15612Ef7941D8DdbAA5

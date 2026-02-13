@@ -1,0 +1,16 @@
+{
+  "name": "tokenized-asset-platform",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "contracts",
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "contracts:deploy": "npm run deploy --workspace=contracts",
+    "contracts:test": "npm run test --workspace=contracts",
+    "backend:dev": "npm run dev --workspace=backend",
+    "frontend:dev": "npm run dev --workspace=frontend"
+  }
+}
