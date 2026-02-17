@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import Link from "next/link";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,9 +35,9 @@ export default function RootLayout({
             </div>
             <div className="flex-none">
               <ul className="menu menu-horizontal px-1">
-                <li><a>Portfolio</a></li>
-                <li><a>Trade</a></li>
-                <li><a>Admin</a></li>
+                <li><Link href="/">Portfolio</Link></li>
+                <li><Link href="/trade">Trade</Link></li>
+                <li><Link href="/admin">Admin</Link></li>
               </ul>
               <ConnectButton />
             </div>

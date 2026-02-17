@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useAccount, useBalance, useReadContract } from 'wagmi';
 import { parseAbi, formatEther } from 'viem';
 
@@ -71,7 +72,11 @@ export default function Home() {
                   <td>Gold (GLD)</td>
                   <td>{formattedGold}</td>
                   <td>$0.00</td>
-                  <td><button className="btn btn-xs btn-primary">Trade</button></td>
+                  <td>
+                    <Link href="/trade" className="btn btn-xs btn-primary">
+                      Trade
+                    </Link>
+                  </td>
                 </tr>
               </tbody>
             </table>

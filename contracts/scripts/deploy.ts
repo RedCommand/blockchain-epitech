@@ -28,6 +28,38 @@ async function main() {
   const oracle = await SimpleOracle.deploy();
   await oracle.waitForDeployment();
   console.log("SimpleOracle deployed to:", await oracle.getAddress());
+
+  // 5. Deploy Simple AMM
+  const SimpleAMM = await ethers.getContractFactory("SimpleAMM");
+  const amm = await SimpleAMM.deploy(await gold.getAddress(), registryAddress);
+  await amm.waitForDeployment();
+  const ammAddress = await amm.getAddress();
+  console.log("SimpleAMM deployed to:", ammAddress);
+
+  // 6. Whitelist AMM (so it can hold tokens)
+  const whitelistTx = await registry.setWhitelist(ammAddress, true);
+  await whitelistTx.wait();
+  console.log("AMM whitelisted in ComplianceRegistry");
+
+  // 7. Optional: seed initial liquidity (requires env vars)
+  const initEth = process.env.INIT_LIQUIDITY_ETH;
+  const initToken = process.env.INIT_LIQUIDITY_TOKEN;
+
+  if (initEth && initToken) {
+    const ethAmount = ethers.parseEther(initEth);
+    const tokenAmount = ethers.parseEther(initToken);
+
+    const mintTx = await gold.mint(deployer.address, tokenAmount);
+    await mintTx.wait();
+
+    const approveTx = await gold.approve(ammAddress, tokenAmount);
+    await approveTx.wait();
+
+    const addLiqTx = await amm.addLiquidity(tokenAmount, { value: ethAmount });
+    await addLiqTx.wait();
+
+    console.log("Initial liquidity added:", initEth, "ETH and", initToken, "tokens");
+  }
 }
 
 main().catch((error) => {
