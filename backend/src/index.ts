@@ -34,6 +34,7 @@ const client = createPublicClient({
 // Contract Addresses (from env)
 const AMM_ADDRESS = process.env.NEXT_PUBLIC_AMM_ADDRESS as `0x${string}` || '0x0';
 const TOKEN_ADDRESS = process.env.NEXT_PUBLIC_MINERAL_TOKEN_ADDRESS as `0x${string}` || '0x0';
+const ORACLE_ADDRESS = process.env.NEXT_PUBLIC_ORACLE_ADDRESS as `0x${string}` || '0x0';
 
 // Routes
 app.get('/api/users/:address', (req, res) => {
@@ -86,6 +87,78 @@ app.get('/api/pool-reserves', (req, res) => {
       res.json(row || { eth_reserve: 0, token_reserve: 0, timestamp: Date.now() });
     }
   );
+});
+
+app.get('/api/gold-price', async (req, res) => {
+  try {
+    let goldPrice = 2000;
+    let source = 'Environment/Default';
+
+    // Try Gold API
+    try {
+      const goldResponse = await fetch('https://api.gold-api.com/price/XAU', {
+        timeout: 5000
+      });
+      
+      if (goldResponse.ok) {
+        const goldData: any = await goldResponse.json();
+        goldPrice = goldData.price || 2000;
+        source = `Gold API (XAU) - ${goldData.currency || 'USD'}/oz`;
+        console.log(`✓ Gold price: $${goldPrice} ${goldData.currency || 'USD'}/oz`);
+      }
+    } catch (err) {
+      // Fallback silencieusement
+      console.warn('⚠ Gold API unavailable, using fallback');
+      goldPrice = process.env.GOLD_PRICE_USD ? parseFloat(process.env.GOLD_PRICE_USD) : 2000;
+    }
+
+    res.json({ 
+      price: goldPrice, 
+      symbol: 'XAU',
+      unit: 'USD per troy ounce',
+      source: source,
+      timestamp: Math.floor(Date.now() / 1000)
+    });
+  } catch (err) {
+    console.error('Error fetching gold price:', err);
+    res.json({ 
+      price: 2000, 
+      symbol: 'XAU',
+      unit: 'USD per troy ounce',
+      source: 'Default Fallback',
+      timestamp: Math.floor(Date.now() / 1000)
+    });
+  }
+});
+
+app.get('/api/eth-price', async (req, res) => {
+  try {
+    let ethPrice = 3000;
+    let source = 'Default Fallback';
+
+    // Try environment variable first
+    if (process.env.ETH_PRICE_USD) {
+      ethPrice = parseFloat(process.env.ETH_PRICE_USD);
+      source = 'Environment Config';
+    }
+
+    res.json({ 
+      price: ethPrice,
+      symbol: 'ETH',
+      unit: 'USD',
+      source: source,
+      timestamp: Math.floor(Date.now() / 1000)
+    });
+  } catch (err) {
+    console.error('Error in ETH price endpoint:', err);
+    res.json({ 
+      price: 3000, 
+      symbol: 'ETH',
+      unit: 'USD',
+      source: 'Default Fallback',
+      timestamp: Math.floor(Date.now() / 1000)
+    });
+  }
 });
 
 // Start Server

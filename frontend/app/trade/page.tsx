@@ -39,11 +39,14 @@ interface PoolReserves {
 
 export default function TradePage() {
   const { address, isConnected } = useAccount();
-  const [ethIn, setEthIn] = useState('');
-  const [tokenIn, setTokenIn] = useState('');
+  const [direction, setDirection] = useState<'ethToToken' | 'tokenToEth'>('ethToToken');
+  const [amountIn, setAmountIn] = useState('');
+  const [amountOut, setAmountOut] = useState('');
   const [minOut, setMinOut] = useState('0');
   const [swapHistory, setSwapHistory] = useState<SwapRecord[]>([]);
   const [poolReserves, setPoolReserves] = useState<PoolReserves | null>(null);
+  const [ethPrice, setEthPrice] = useState(0);
+  const [goldPrice, setGoldPrice] = useState(0);
 
   const { writeContract, data: hash, isPending } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
@@ -102,54 +105,198 @@ export default function TradePage() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleSwapEthForToken = () => {
-    if (!ethIn) return;
-    writeContract({
-      address: AMM_ADDRESS,
-      abi: AMM_ABI,
-      functionName: 'swapEthForToken',
-      args: [parseEther(minOut || '0')],
-      value: parseEther(ethIn),
-    });
+  // Fetch prices every 30 sec
+  useEffect(() => {
+    const fetchPrices = async () => {
+      try {
+        // Fetch gold price from backend
+        const goldRes = await fetch(`${BACKEND_URL}/api/gold-price`);
+        if (goldRes.ok) {
+          const data = await goldRes.json();
+          setGoldPrice(data.price || 0);
+        }
+
+        // Fetch ETH price from backend (no more CoinGecko rate limit!)
+        const ethRes = await fetch(`${BACKEND_URL}/api/eth-price`);
+        if (ethRes.ok) {
+          const data = await ethRes.json();
+          setEthPrice(data.price || 3000);
+        }
+      } catch (err) {
+        console.error('Error fetching prices:', err);
+      }
+    };
+
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Calculate output amount when input changes
+  useEffect(() => {
+    if (!amountIn || !poolReserves) {
+      setAmountOut('');
+      setMinOut('0');
+      return;
+    }
+
+    const inAmount = parseFloat(amountIn);
+    const ethReserve = poolReserves.eth_reserve;
+    const tokenReserve = poolReserves.token_reserve;
+    const fee = 0.003; // 0.3% fee
+
+    let output = 0;
+    if (direction === 'ethToToken') {
+      // ETH -> Token: amountOut = (inAmount * (1-fee) * tokenReserve) / (ethReserve + inAmount * (1-fee))
+      const amountInWithFee = inAmount * (1 - fee);
+      output = (amountInWithFee * tokenReserve) / (ethReserve + amountInWithFee);
+    } else {
+      // Token -> ETH: amountOut = (inAmount * (1-fee) * ethReserve) / (tokenReserve + inAmount * (1-fee))
+      const amountInWithFee = inAmount * (1 - fee);
+      output = (amountInWithFee * ethReserve) / (tokenReserve + amountInWithFee);
+    }
+
+    setAmountOut(output.toFixed(6));
+    setMinOut((output * 0.95).toFixed(6)); // 5% slippage
+  }, [amountIn, direction, poolReserves]);
+
+  const handleSwap = () => {
+    if (!amountIn) return;
+
+    if (direction === 'ethToToken') {
+      writeContract({
+        address: AMM_ADDRESS,
+        abi: AMM_ABI,
+        functionName: 'swapEthForToken',
+        args: [parseEther(minOut || '0')],
+        value: parseEther(amountIn),
+      });
+    } else {
+      // Token -> ETH requires approval first
+      writeContract({
+        address: AMM_ADDRESS,
+        abi: AMM_ABI,
+        functionName: 'swapTokenForEth',
+        args: [parseEther(amountIn), parseEther(minOut || '0')],
+      });
+    }
   };
 
-  const handleApproveToken = () => {
-    if (!tokenIn) return;
+  const handleApprove = () => {
+    if (!amountIn) return;
     writeContract({
       address: TOKEN_ADDRESS,
       abi: TOKEN_ABI,
       functionName: 'approve',
-      args: [AMM_ADDRESS, parseEther(tokenIn)],
+      args: [AMM_ADDRESS, parseEther(amountIn)],
     });
   };
-
-  const handleSwapTokenForEth = () => {
-    if (!tokenIn) return;
-    writeContract({
-      address: AMM_ADDRESS,
-      abi: AMM_ABI,
-      functionName: 'swapTokenForEth',
-      args: [parseEther(tokenIn), parseEther(minOut || '0')],
-    });
-  };
-
-  const formattedTokenBalance = tokenBalance ? formatEther(tokenBalance) : '0';
-  const formattedTokenPool = tokenPool ? formatEther(tokenPool) : '0';
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="card bg-base-100 shadow-xl lg:col-span-2">
         <div className="card-body">
-          <h2 className="card-title">Swap ETH → Token</h2>
-          <label className="form-control">
-            <div className="label"><span className="label-text">ETH in</span></div>
-            <input className="input input-bordered" value={ethIn} onChange={(e) => setEthIn(e.target.value)} placeholder="0.1" />
+          <h2 className="card-title">Swap</h2>
+          
+          {/* Direction Selector */}
+          <div className="form-control">
+            <label className="label"><span className="label-text">Swap Direction</span></label>
+            <select 
+              className="select select-bordered" 
+              value={direction}
+              onChange={(e) => {
+                setDirection(e.target.value as 'ethToToken' | 'tokenToEth');
+                setAmountIn('');
+                setAmountOut('');
+              }}
+            >
+              <option value="ethToToken">ETH → GLD</option>
+              <option value="tokenToEth">GLD → ETH</option>
+            </select>
+          </div>
+
+          {/* Amount In */}
+          <label className="form-control mt-4">
+            <div className="label">
+              <span className="label-text">
+                {direction === 'ethToToken' ? 'ETH' : 'GLD'} to send
+              </span>
+            </div>
+            <input 
+              className="input input-bordered text-lg" 
+              value={amountIn} 
+              onChange={(e) => setAmountIn(e.target.value)} 
+              placeholder="Enter amount"
+              type="number"
+              step="0.01"
+            />
+            <div className="label">
+              <span className="label-text-alt">
+                Value: ${direction === 'ethToToken' 
+                  ? (parseFloat(amountIn || '0') * ethPrice).toFixed(2)
+                  : (parseFloat(amountIn || '0') * goldPrice).toFixed(2)
+                }
+              </span>
+            </div>
           </label>
+
+          {/* Arrow */}
+          <div className="flex justify-center py-2">
+            <div className="text-2xl">⬇</div>
+          </div>
+
+          {/* Amount Out (Auto-filled) */}
           <label className="form-control">
-            <div className="label"><span className="label-text">Min token out</span></div>
-            <input className="input input-bordered" value={minOut} onChange={(e) => setMinOut(e.target.value)} placeholder="0" />
+            <div className="label">
+              <span className="label-text">
+                {direction === 'ethToToken' ? 'GLD' : 'ETH'} to receive
+              </span>
+            </div>
+            <input 
+              className="input input-bordered text-lg font-bold" 
+              value={amountOut} 
+              readOnly
+              placeholder="Calculating..."
+              type="number"
+            />
+            <div className="label">
+              <span className="label-text-alt">
+                Min received (5% slippage): {amountOut ? amountOut : '0'}
+              </span>
+            </div>
           </label>
-          <button className="btn btn-primary" onClick={handleSwapEthForToken} disabled={!isConnected || isPending}>Swap</button>
+
+          {/* Action Buttons */}
+          <div className="flex gap-2 mt-6">
+            {direction === 'tokenToEth' && (
+              <button 
+                className="btn btn-outline flex-1" 
+                onClick={handleApprove} 
+                disabled={!isConnected || !amountIn || isPending}
+              >
+                Approve
+              </button>
+            )}
+            <button 
+              className={`btn ${direction === 'ethToToken' ? 'btn-primary' : 'btn-success'} flex-1`}
+              onClick={handleSwap} 
+              disabled={!isConnected || !amountIn || isPending}
+            >
+              {isPending ? 'Processing...' : 'Swap Now'}
+            </button>
+          </div>
+
+          {/* Status Messages */}
+          {isConfirming && (
+            <div className="alert alert-info mt-4">
+              <span>⏳ Waiting for confirmation...</span>
+            </div>
+          )}
+          {isSuccess && (
+            <div className="alert alert-success mt-4">
+              <span>✅ Swap confirmed!</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -157,40 +304,17 @@ export default function TradePage() {
         <div className="card-body">
           <h2 className="card-title text-lg">Pool Status</h2>
           <p className="text-sm">ETH: {ethPool?.formatted || '0'}</p>
-          <p className="text-sm">Token: {formattedTokenPool}</p>
-          <p className="text-sm">My Tokens: {formattedTokenBalance}</p>
+          <p className="text-sm">Token: {formatEther(tokenPool ? BigInt(tokenPool.toString()) : 0n)}</p>
+          <p className="text-sm font-bold mt-2">My Tokens: {formatEther(tokenBalance ? BigInt(tokenBalance.toString()) : 0n)}</p>
+          <div className="divider my-1"></div>
+          <p className="text-xs font-bold">Real-time Prices:</p>
+          <p className="text-xs">GLD: ${goldPrice.toFixed(2)}/g</p>
+          <p className="text-xs">ETH: ${ethPrice.toFixed(2)}</p>
           {poolReserves && (
-            <p className="text-xs opacity-50">
-              Last updated: {new Date(poolReserves.timestamp * 1000).toLocaleTimeString()}
+            <p className="text-xs opacity-50 mt-1">
+              Updated: {new Date(poolReserves.timestamp * 1000).toLocaleTimeString()}
             </p>
           )}
-        </div>
-      </div>
-
-      <div className="card bg-base-100 shadow-xl lg:col-span-2">
-        <div className="card-body">
-          <h2 className="card-title">Swap Token → ETH</h2>
-          <label className="form-control">
-            <div className="label"><span className="label-text">Token in</span></div>
-            <input className="input input-bordered" value={tokenIn} onChange={(e) => setTokenIn(e.target.value)} placeholder="10" />
-          </label>
-          <label className="form-control">
-            <div className="label"><span className="label-text">Min ETH out</span></div>
-            <input className="input input-bordered" value={minOut} onChange={(e) => setMinOut(e.target.value)} placeholder="0" />
-          </label>
-          <div className="flex gap-2">
-            <button className="btn btn-outline" onClick={handleApproveToken} disabled={!isConnected || isPending}>Approve</button>
-            <button className="btn btn-primary" onClick={handleSwapTokenForEth} disabled={!isConnected || isPending}>Swap</button>
-          </div>
-        </div>
-      </div>
-
-      <div className="card bg-base-100 shadow-xl">
-        <div className="card-body">
-          <h2 className="card-title text-lg">Status</h2>
-          {isConfirming && <div className="badge badge-warning">Confirming...</div>}
-          {isSuccess && <div className="badge badge-success">Success!</div>}
-          {!isConnected && <div className="badge badge-error">Disconnected</div>}
         </div>
       </div>
 
@@ -212,9 +336,9 @@ export default function TradePage() {
                 {swapHistory.slice(0, 10).map((swap) => (
                   <tr key={swap.id}>
                     <td>{swap.user.slice(0, 6)}...{swap.user.slice(-4)}</td>
-                    <td>{swap.direction}</td>
-                    <td>{swap.eth_in || swap.token_in || 0}</td>
-                    <td>{swap.eth_out || swap.token_out || 0}</td>
+                    <td><span className="badge badge-sm">{swap.direction}</span></td>
+                    <td>{(swap.eth_in || swap.token_in || 0).toFixed(4)}</td>
+                    <td>{(swap.eth_out || swap.token_out || 0).toFixed(4)}</td>
                     <td>{new Date(swap.timestamp * 1000).toLocaleTimeString()}</td>
                   </tr>
                 ))}
