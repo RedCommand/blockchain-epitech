@@ -10,6 +10,7 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3001;
+let lastPoolErrorLog = 0;
 
 app.use(cors());
 app.use(express.json());
@@ -91,25 +92,55 @@ app.get('/api/pool-reserves', (req, res) => {
 
 app.get('/api/gold-price', async (req, res) => {
   try {
-    let goldPrice = 2000;
-    let source = 'Environment/Default';
+    let goldPrice = 0;
+    let source = 'Unknown';
 
-    // Try Gold API
+    // Fetch real-time gold price from Gold API
     try {
-      const goldResponse = await fetch('https://api.gold-api.com/price/XAU', {
-        timeout: 5000
-      });
+      const goldResponse = await fetch(
+        'https://api.gold-api.com/price/XAU'
+      );
       
       if (goldResponse.ok) {
         const goldData: any = await goldResponse.json();
-        goldPrice = goldData.price || 2000;
+        // API returns price in various currencies, default to USD per troy ounce
+        goldPrice = goldData.price || 0;
         source = `Gold API (XAU) - ${goldData.currency || 'USD'}/oz`;
-        console.log(`✓ Gold price: $${goldPrice} ${goldData.currency || 'USD'}/oz`);
+        
+        console.log(`Gold price fetched: $${goldPrice} ${goldData.currency || 'USD'}/oz`);
+      } else {
+        throw new Error('Gold API returned non-ok status');
       }
     } catch (err) {
-      // Fallback silencieusement
-      console.warn('⚠ Gold API unavailable, using fallback');
-      goldPrice = process.env.GOLD_PRICE_USD ? parseFloat(process.env.GOLD_PRICE_USD) : 2000;
+      console.warn('Gold API failed, trying fallback:', err);
+      
+      // Fallback to environment variable
+      const envPrice = process.env.GOLD_PRICE_USD;
+      if (envPrice) {
+        goldPrice = parseFloat(envPrice);
+        source = 'Environment Config';
+      } else {
+        // Default fallback price
+        goldPrice = 2000; // Per troy ounce
+        source = 'Default Fallback';
+      }
+    }
+
+    // Optional: Also get from oracle if available
+    let oraclePrice = 0;
+    if (ORACLE_ADDRESS !== '0x0') {
+      try {
+        const priceBytes32 = '0x474f4c4400000000000000000000000000000000000000000000000000000000';
+        const oraclePriceResult = await client.readContract({
+          address: ORACLE_ADDRESS,
+          abi: [parseAbiItem('function getPrice(bytes32 assetId) external view returns (uint256)')],
+          functionName: 'getPrice',
+          args: [priceBytes32],
+        });
+        oraclePrice = Number(oraclePriceResult || 0) / 1e18;
+      } catch (err) {
+        console.warn('Could not fetch oracle price');
+      }
     }
 
     res.json({ 
@@ -117,15 +148,18 @@ app.get('/api/gold-price', async (req, res) => {
       symbol: 'XAU',
       unit: 'USD per troy ounce',
       source: source,
+      oraclePrice: oraclePrice > 0 ? oraclePrice : undefined,
       timestamp: Math.floor(Date.now() / 1000)
     });
   } catch (err) {
     console.error('Error fetching gold price:', err);
+    // Return a default price instead of error
     res.json({ 
+      error: 'Failed to fetch real-time price, using default',
       price: 2000, 
       symbol: 'XAU',
       unit: 'USD per troy ounce',
-      source: 'Default Fallback',
+      source: 'Default',
       timestamp: Math.floor(Date.now() / 1000)
     });
   }
@@ -233,7 +267,11 @@ if (AMM_ADDRESS !== '0x0' && TOKEN_ADDRESS !== '0x0') {
         }
       );
     } catch (err) {
-      console.error('Error fetching pool reserves:', err);
+      const now = Date.now();
+      if (now - lastPoolErrorLog > 60000) {
+        console.error('Error fetching pool reserves:', err);
+        lastPoolErrorLog = now;
+      }
     }
   }, 30000);
 

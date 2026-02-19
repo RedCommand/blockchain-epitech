@@ -41,8 +41,10 @@ export default function TradePage() {
   const { address, isConnected } = useAccount();
   const [direction, setDirection] = useState<'ethToToken' | 'tokenToEth'>('ethToToken');
   const [amountIn, setAmountIn] = useState('');
+  const [debouncedAmountIn, setDebouncedAmountIn] = useState('');
   const [amountOut, setAmountOut] = useState('');
   const [minOut, setMinOut] = useState('0');
+  const [poolEmpty, setPoolEmpty] = useState(false);
   const [swapHistory, setSwapHistory] = useState<SwapRecord[]>([]);
   const [poolReserves, setPoolReserves] = useState<PoolReserves | null>(null);
   const [ethPrice, setEthPrice] = useState(0);
@@ -86,6 +88,15 @@ export default function TradePage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Debounce input to avoid recalculating on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedAmountIn(amountIn);
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [amountIn]);
+
   // Fetch pool reserves every 15 sec
   useEffect(() => {
     const fetchPoolReserves = async () => {
@@ -109,18 +120,38 @@ export default function TradePage() {
   useEffect(() => {
     const fetchPrices = async () => {
       try {
-        // Fetch gold price from backend
-        const goldRes = await fetch(`${BACKEND_URL}/api/gold-price`);
-        if (goldRes.ok) {
-          const data = await goldRes.json();
-          setGoldPrice(data.price || 0);
+        const goldCandidates = [
+          `${BACKEND_URL}/api/gold-price`,
+          'http://localhost:3001/api/gold-price',
+          'http://127.0.0.1:3001/api/gold-price',
+        ];
+        for (const url of goldCandidates) {
+          try {
+            const goldRes = await fetch(url, { cache: 'no-store' });
+            if (!goldRes.ok) continue;
+            const data = await goldRes.json();
+            setGoldPrice(data.price || 0);
+            break;
+          } catch {
+            // try next candidate
+          }
         }
 
-        // Fetch ETH price from backend (no more CoinGecko rate limit!)
-        const ethRes = await fetch(`${BACKEND_URL}/api/eth-price`);
-        if (ethRes.ok) {
-          const data = await ethRes.json();
-          setEthPrice(data.price || 3000);
+        const ethCandidates = [
+          `${BACKEND_URL}/api/eth-price`,
+          'http://localhost:3001/api/eth-price',
+          'http://127.0.0.1:3001/api/eth-price',
+        ];
+        for (const url of ethCandidates) {
+          try {
+            const ethRes = await fetch(url, { cache: 'no-store' });
+            if (!ethRes.ok) continue;
+            const data = await ethRes.json();
+            setEthPrice(data.price || 3000);
+            break;
+          } catch {
+            // try next candidate
+          }
         }
       } catch (err) {
         console.error('Error fetching prices:', err);
@@ -134,16 +165,25 @@ export default function TradePage() {
 
   // Calculate output amount when input changes
   useEffect(() => {
-    if (!amountIn || !poolReserves) {
+    const normalized = debouncedAmountIn.replace(/[^0-9]/g, '');
+    if (!debouncedAmountIn || normalized.length < 3 || !poolReserves) {
       setAmountOut('');
       setMinOut('0');
+      setPoolEmpty(false);
       return;
     }
 
-    const inAmount = parseFloat(amountIn);
+    const inAmount = parseFloat(debouncedAmountIn);
     const ethReserve = poolReserves.eth_reserve;
     const tokenReserve = poolReserves.token_reserve;
     const fee = 0.003; // 0.3% fee
+
+    if (!isFinite(inAmount) || inAmount <= 0 || ethReserve <= 0 || tokenReserve <= 0) {
+      setAmountOut('');
+      setMinOut('0');
+      setPoolEmpty(true);
+      return;
+    }
 
     let output = 0;
     if (direction === 'ethToToken') {
@@ -158,10 +198,11 @@ export default function TradePage() {
 
     setAmountOut(output.toFixed(6));
     setMinOut((output * 0.95).toFixed(6)); // 5% slippage
-  }, [amountIn, direction, poolReserves]);
+    setPoolEmpty(false);
+  }, [debouncedAmountIn, direction, poolReserves]);
 
   const handleSwap = () => {
-    if (!amountIn) return;
+    if (!amountIn || poolEmpty) return;
 
     if (direction === 'ethToToken') {
       writeContract({
@@ -272,7 +313,7 @@ export default function TradePage() {
               <button 
                 className="btn btn-outline flex-1" 
                 onClick={handleApprove} 
-                disabled={!isConnected || !amountIn || isPending}
+                disabled={!isConnected || !amountIn || isPending || poolEmpty}
               >
                 Approve
               </button>
@@ -280,11 +321,17 @@ export default function TradePage() {
             <button 
               className={`btn ${direction === 'ethToToken' ? 'btn-primary' : 'btn-success'} flex-1`}
               onClick={handleSwap} 
-              disabled={!isConnected || !amountIn || isPending}
+              disabled={!isConnected || !amountIn || isPending || poolEmpty}
             >
               {isPending ? 'Processing...' : 'Swap Now'}
             </button>
           </div>
+
+          {poolEmpty && (
+            <div className="alert alert-warning mt-4">
+              <span>Pool vide ou réserves indisponibles. Ajoute d'abord de la liquidité.</span>
+            </div>
+          )}
 
           {/* Status Messages */}
           {isConfirming && (
