@@ -1,4 +1,6 @@
-import { ethers } from "hardhat";
+import { ethers, network } from "hardhat";
+import * as fs from "fs";
+import * as path from "path";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -60,6 +62,34 @@ async function main() {
 
     console.log("Initial liquidity added:", initEth, "ETH and", initToken, "tokens");
   }
+
+  // Generate and save config
+  const chainId = network.config.chainId || 1337;
+  const config = {
+    network: network.name,
+    chainId: chainId,
+    contracts: {
+      ComplianceRegistry: registryAddress,
+      MineralToken: await gold.getAddress(),
+      DiamondCollection: await diamonds.getAddress(),
+      SimpleOracle: await oracle.getAddress(),
+      SimpleAMM: ammAddress,
+    },
+  };
+
+  const configContent = JSON.stringify(config, null, 2);
+
+  // Resolve paths relative to this script
+  // __dirname is contracts/scripts, so ../../ goes to project root
+  const frontendPath = path.resolve(__dirname, "../../frontend/app/contracts-config.json");
+  const backendPath = path.resolve(__dirname, "../../backend/src/contracts-config.json");
+
+  fs.writeFileSync(frontendPath, configContent);
+  fs.writeFileSync(backendPath, configContent);
+
+  console.log(`Config saved to:
+    - ${frontendPath}
+    - ${backendPath}`);
 }
 
 main().catch((error) => {

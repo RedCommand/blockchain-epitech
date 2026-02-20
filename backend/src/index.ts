@@ -2,11 +2,18 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import sqlite3 from 'sqlite3';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 const { Database } = sqlite3.verbose();
 import { createPublicClient, http, parseAbiItem } from 'viem';
 import { sepolia, hardhat } from 'viem/chains';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -32,10 +39,41 @@ const client = createPublicClient({
   transport: http(process.env.RPC_URL)
 });
 
-// Contract Addresses (from env)
-const AMM_ADDRESS = process.env.NEXT_PUBLIC_AMM_ADDRESS as `0x${string}` || '0x0';
-const TOKEN_ADDRESS = process.env.NEXT_PUBLIC_MINERAL_TOKEN_ADDRESS as `0x${string}` || '0x0';
-const ORACLE_ADDRESS = process.env.NEXT_PUBLIC_ORACLE_ADDRESS as `0x${string}` || '0x0';
+// Contract Addresses
+let AMM_ADDRESS = (process.env.NEXT_PUBLIC_AMM_ADDRESS || '0x0') as `0x${string}`;
+let TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_MINERAL_TOKEN_ADDRESS || '0x0') as `0x${string}`;
+let ORACLE_ADDRESS = (process.env.NEXT_PUBLIC_ORACLE_ADDRESS || '0x0') as `0x${string}`;
+
+try {
+  const potentialPaths = [
+    path.join(__dirname, 'contracts-config.json'),
+    path.join(__dirname, '../src/contracts-config.json'),
+    path.join(process.cwd(), 'contracts-config.json'),
+    path.join(process.cwd(), 'src/contracts-config.json')
+  ];
+
+  let configPath = '';
+  for (const p of potentialPaths) {
+    if (fs.existsSync(p)) {
+      configPath = p;
+      break;
+    }
+  }
+
+  if (configPath) {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    if (config.contracts) {
+      AMM_ADDRESS = config.contracts.SimpleAMM as `0x${string}` || AMM_ADDRESS;
+      TOKEN_ADDRESS = config.contracts.MineralToken as `0x${string}` || TOKEN_ADDRESS;
+      ORACLE_ADDRESS = config.contracts.SimpleOracle as `0x${string}` || ORACLE_ADDRESS;
+      console.log(`Loaded contract addresses from config file: ${configPath}`);
+    }
+  } else {
+    throw new Error('Config file not found');
+  }
+} catch (e) {
+  console.warn('Could not load contracts-config.json, using env vars');
+}
 
 // Routes
 app.get('/api/users/:address', (req, res) => {

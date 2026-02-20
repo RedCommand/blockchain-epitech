@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useWriteContract, useAccount, useReadContract } from 'wagmi';
 import { parseAbi, parseEther } from 'viem';
 import { useWaitForTransactionReceipt } from 'wagmi';
+import config from '../contracts-config.json';
 
 const REGISTRY_ABI = parseAbi([
   'function setWhitelist(address user, bool status) external',
@@ -17,8 +18,8 @@ const TOKEN_ABI = parseAbi([
 ]);
 
 // Replace with deployed address
-const REGISTRY_ADDRESS = (process.env.NEXT_PUBLIC_COMPLIANCE_REGISTRY_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`;
-const TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_MINERAL_TOKEN_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`;
+const REGISTRY_ADDRESS = (config.contracts.ComplianceRegistry || process.env.NEXT_PUBLIC_COMPLIANCE_REGISTRY_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`;
+const TOKEN_ADDRESS = (config.contracts.MineralToken || process.env.NEXT_PUBLIC_MINERAL_TOKEN_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`;
 
 export default function AdminPage() {
   const { address } = useAccount();

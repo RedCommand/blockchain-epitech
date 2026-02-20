@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "tsc && node dist/index.js",
-    "build": "tsc",
+    "dev": "tsc && cp src/contracts-config.json dist/ && node dist/index.js",
+    "build": "tsc && cp src/contracts-config.json dist/",
     "start": "node dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

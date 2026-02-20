@@ -64,9 +64,33 @@ The frontend runs on http://localhost:3000.
 - `frontend/`: User interface and admin panel.
 
 ## Deployment
-1. Configure `.env` in `contracts/` with `SEPOLIA_RPC_URL` and `PRIVATE_KEY`.
-2. Run `npx hardhat run scripts/deploy.ts --network sepolia` (Script needs to be created).
-3. Update `frontend/app/admin/page.tsx` with deployed addresses.
+
+The project supports both local development and deployment to Sepolia Testnet.
+
+### Local Development (Hardhat Network)
+1.  Start a local blockchain node:
+    ```bash
+    cd contracts
+    npx hardhat node
+    ```
+2.  In a separate terminal, deploy contracts to localhost:
+    ```bash
+    cd contracts
+    npm run deploy:local
+    ```
+    This script will automatically generate `contracts-config.json` in both `frontend/app/` and `backend/src/`.
+
+### Sepolia Testnet
+1.  Configure `.env` in `contracts/` with your `SEPOLIA_RPC_URL` (e.g. from Alchemy/Infura) and `PRIVATE_KEY` (deployer wallet).
+2.  Deploy to Sepolia:
+    ```bash
+    cd contracts
+    npm run deploy:sepolia
+    ```
+    The configuration files will be updated with the Sepolia addresses.
+
+### Usage in Frontend/Backend
+The generated `contracts-config.json` file contains the contract addresses and chain ID. Import this file in your frontend or backend code to interact with the deployed contracts.
 
 ## License
 MIT

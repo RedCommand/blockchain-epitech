@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAccount, useBalance, useReadContract, useWriteContract } from 'wagmi';
 import { parseAbi, parseEther, formatEther } from 'viem';
 import { useWaitForTransactionReceipt } from 'wagmi';
+import config from '../contracts-config.json';
 
 const AMM_ABI = parseAbi([
   'function swapEthForToken(uint256 minTokenOut) external payable returns (uint256)',
@@ -16,8 +17,8 @@ const TOKEN_ABI = parseAbi([
   'function balanceOf(address account) external view returns (uint256)'
 ]);
 
-const AMM_ADDRESS = (process.env.NEXT_PUBLIC_AMM_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`;
-const TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_MINERAL_TOKEN_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`;
+const AMM_ADDRESS = (config.contracts.SimpleAMM || process.env.NEXT_PUBLIC_AMM_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`;
+const TOKEN_ADDRESS = (config.contracts.MineralToken || process.env.NEXT_PUBLIC_MINERAL_TOKEN_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`;
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 interface SwapRecord {
