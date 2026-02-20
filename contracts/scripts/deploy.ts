@@ -93,6 +93,16 @@ async function main() {
   console.log(`Config saved to:
     - ${frontendPath}
     - ${backendPath}`);
+
+  if (process.env.CONFIG_OUTPUT_PATH) {
+    const customPath = path.resolve(process.env.CONFIG_OUTPUT_PATH);
+    const dir = path.dirname(customPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(customPath, configContent);
+    console.log(`    - ${customPath} (Custom Path)`);
+  }
 }
 
 main().catch((error) => {

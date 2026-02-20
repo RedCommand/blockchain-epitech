@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  # 1. Hardhat Node (Local Blockchain)
+  chain:
+    build: ./contracts
+    container_name: local-chain
+    ports:
+      - "8545:8545"
+    networks:
+      - blockchain-net
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8545"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    command: ["npx", "hardhat", "node", "--hostname", "0.0.0.0"]
+
+  # 2. Deploy Contracts (Ephemeral)
+  deployer:
+    build: ./contracts
+    container_name: contracts-deployer
+    depends_on:
+      chain:
+        condition: service_healthy
+    networks:
+      - blockchain-net
+    volumes:
+      - contracts-data:/shared
+    environment:
+      - CONFIG_OUTPUT_PATH=/shared/contracts-config.json
+    command: >
+      sh -c "
+        echo 'Deploying contracts...' &&
+        npx hardhat run scripts/deploy.ts --network localhost &&
+        echo 'Contracts deployed!'
+      "
+
+  # 3. Backend Service
+  backend:
+    build: ./backend
+    container_name: blockchain-backend
+    depends_on:
+      deployer:
+        condition: service_completed_successfully
+    ports:
+      - "3001:3001"
+    networks:
+      - blockchain-net
+    volumes:
+      - contracts-data:/tmp/config
+    environment:
+      - PORT=3001
+      - RPC_URL=http://chain:8545
+      - CHAIN_ID=31337
+    # Copy config from volume to app dir, then start
+    command: >
+      sh -c "
+        cp /tmp/config/contracts-config.json /app/contracts-config.json &&
+        npm start
+      "
+
+  # 4. Frontend Service
+  frontend:
+    build: ./frontend
+    container_name: blockchain-frontend
+    depends_on:
+      deployer:
+        condition: service_completed_successfully
+    ports:
+      - "3000:3000"
+    networks:
+      - blockchain-net
+    volumes:
+      - contracts-data:/tmp/config
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_RPC_URL=http://localhost:8545
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:3001
+      - NEXT_PUBLIC_CHAIN_ID=31337
+    # Copy config from volume to source dir, then start dev server
+    command: >
+      sh -c "
+        cp /tmp/config/contracts-config.json /app/app/contracts-config.json &&
+        npm run dev
+      "
+
+volumes:
+  contracts-data:
+
+networks:
+  blockchain-net:
+    driver: bridge
