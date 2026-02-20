@@ -166,8 +166,7 @@ export default function TradePage() {
 
   // Calculate output amount when input changes
   useEffect(() => {
-    const normalized = debouncedAmountIn.replace(/[^0-9]/g, '');
-    if (!debouncedAmountIn || normalized.length < 3 || !poolReserves) {
+    if (!debouncedAmountIn || !poolReserves) {
       setAmountOut('');
       setMinOut('0');
       setPoolEmpty(false);

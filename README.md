@@ -92,5 +92,21 @@ The project supports both local development and deployment to Sepolia Testnet.
 ### Usage in Frontend/Backend
 The generated `contracts-config.json` file contains the contract addresses and chain ID. Import this file in your frontend or backend code to interact with the deployed contracts.
 
+## Admin Access (Development)
+To use the **Admin Panel** on localhost, you must transfer ownership of the contracts to your MetaMask wallet address.
+
+1.  Create or update `contracts/.env`:
+    ```bash
+    NEW_OWNER=0xYourWalletAddressHere
+    ```
+2.  Run the claim script:
+    ```bash
+    cd contracts
+    npm run claim-ownership
+    ```
+    This will transfer ownership of all contracts to your address and fund it with 1000 ETH (on local network).
+
+**Note:** If you restart the Hardhat node, you must redeploy (`npm run deploy:local`) and reclaim ownership (`npm run claim-ownership`).
+
 ## License
 MIT

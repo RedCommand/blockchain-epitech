@@ -1,0 +1,49 @@
+
+> backend@1.0.0 dev
+> tsc && cp src/contracts-config.json dist/ && node dist/index.js
+
+[dotenv@17.3.1] injecting env (2) from .env -- tip: 🛡️ auth for agents: https://vestauth.com
+Loaded contract addresses from config file: /Users/maxime/EPITECH/blockchain/backend/dist/contracts-config.json
+Using RPC URL: http://127.0.0.1:8545 (Chain ID: 31337)
+Indexer Backend running on http://localhost:3001
+Connected to blockchain. Current block: 38
+Starting event indexer...
+Event listeners active.
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Gold price fetched: $5071.600098 USD/oz
+Gold price fetched: $5071.600098 USD/oz
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Gold price fetched: $5071.600098 USD/oz
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Gold price fetched: $5071 USD/oz
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Gold price fetched: $5071 USD/oz
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Gold price fetched: $5074.700195 USD/oz
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Gold price fetched: $5074.700195 USD/oz
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Gold price fetched: $5076 USD/oz
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Gold price fetched: $5076 USD/oz
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Gold price fetched: $5073.399902 USD/oz
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Gold price fetched: $5073.600098 USD/oz
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Gold price fetched: $5074.700195 USD/oz
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Gold price fetched: $5074.200195 USD/oz
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Gold price fetched: $5074.299805 USD/oz
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Gold price fetched: $5074.5 USD/oz
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens
+Gold price fetched: $5071.799805 USD/oz
+Pool reserves updated: 12.594973082038978 ETH, 794.9337624593088 tokens

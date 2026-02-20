@@ -32,17 +32,13 @@ db.serialize(() => {
   db.run("CREATE TABLE IF NOT EXISTS pool_reserves (timestamp INTEGER PRIMARY KEY, eth_reserve REAL, token_reserve REAL)");
 });
 
-// Blockchain Client
-const chain = process.env.CHAIN_ID === '1337' ? hardhat : sepolia;
-const client = createPublicClient({
-  chain: chain,
-  transport: http(process.env.RPC_URL)
-});
-
 // Contract Addresses
 let AMM_ADDRESS = (process.env.NEXT_PUBLIC_AMM_ADDRESS || '0x0') as `0x${string}`;
 let TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_MINERAL_TOKEN_ADDRESS || '0x0') as `0x${string}`;
 let ORACLE_ADDRESS = (process.env.NEXT_PUBLIC_ORACLE_ADDRESS || '0x0') as `0x${string}`;
+
+let chainId = parseInt(process.env.CHAIN_ID || '1337');
+let rpcUrl = process.env.RPC_URL;
 
 try {
   const potentialPaths = [
@@ -66,6 +62,16 @@ try {
       AMM_ADDRESS = config.contracts.SimpleAMM as `0x${string}` || AMM_ADDRESS;
       TOKEN_ADDRESS = config.contracts.MineralToken as `0x${string}` || TOKEN_ADDRESS;
       ORACLE_ADDRESS = config.contracts.SimpleOracle as `0x${string}` || ORACLE_ADDRESS;
+      
+      if (config.chainId) {
+        chainId = config.chainId;
+      }
+      
+      // Force localhost RPC if config says so, to avoid connecting to wrong networks
+      if (config.network === 'localhost' || chainId === 1337) {
+        rpcUrl = 'http://127.0.0.1:8545';
+      }
+
       console.log(`Loaded contract addresses from config file: ${configPath}`);
     }
   } else {
@@ -74,6 +80,15 @@ try {
 } catch (e) {
   console.warn('Could not load contracts-config.json, using env vars');
 }
+
+// Blockchain Client
+const chain = chainId === 1337 ? hardhat : sepolia;
+const client = createPublicClient({
+  chain: chain,
+  transport: http(rpcUrl)
+});
+
+console.log(`Using RPC URL: ${rpcUrl} (Chain ID: ${chainId})`);
 
 // Routes
 app.get('/api/users/:address', (req, res) => {
@@ -238,82 +253,111 @@ app.listen(port, () => {
   console.log(`Indexer Backend running on http://localhost:${port}`);
 });
 
-// Event Listeners (Indexer)
-if (AMM_ADDRESS !== '0x0' && TOKEN_ADDRESS !== '0x0') {
-  console.log('Starting event indexer...');
+async function checkBlockchainConnection() {
+  try {
+    const blockNumber = await client.getBlockNumber();
+    console.log(`Connected to blockchain. Current block: ${blockNumber}`);
 
-  // Listen to SwapEthForToken events
-  client.watchContractEvent({
-    address: AMM_ADDRESS,
-    abi: [parseAbiItem('event SwapEthForToken(address indexed user, uint256 ethIn, uint256 tokenOut)')],
-    poll: true,
-    onLogs: (logs: any[]) => {
-      logs.forEach((log) => {
-        const { user, ethIn, tokenOut } = log.args;
-        db.run(
-          "INSERT INTO swaps (user, eth_in, token_out, direction, timestamp) VALUES (?, ?, ?, ?, ?)",
-          [user, Number(ethIn) / 1e18, Number(tokenOut) / 1e18, 'ETH_TO_TOKEN', Math.floor(Date.now() / 1000)],
-          (err) => {
-            if (err) console.error('Error inserting swap:', err);
-            else console.log(`Recorded swap: ${user} swapped ETH for token`);
-          }
-        );
-      });
-    },
-  });
-
-  // Listen to SwapTokenForEth events
-  client.watchContractEvent({
-    address: AMM_ADDRESS,
-    abi: [parseAbiItem('event SwapTokenForEth(address indexed user, uint256 tokenIn, uint256 ethOut)')],
-    poll: true,
-    onLogs: (logs: any[]) => {
-      logs.forEach((log) => {
-        const { user, tokenIn, ethOut } = log.args;
-        db.run(
-          "INSERT INTO swaps (user, token_in, eth_out, direction, timestamp) VALUES (?, ?, ?, ?, ?)",
-          [user, Number(tokenIn) / 1e18, Number(ethOut) / 1e18, 'TOKEN_TO_ETH', Math.floor(Date.now() / 1000)],
-          (err) => {
-            if (err) console.error('Error inserting swap:', err);
-            else console.log(`Recorded swap: ${user} swapped token for ETH`);
-          }
-        );
-      });
-    },
-  });
-
-  // Periodic pool reserves update (every 30 sec)
-  setInterval(async () => {
-    try {
-      const ethBalance = await client.getBalance({ address: AMM_ADDRESS });
-      const tokenBalance: any = await client.readContract({
-        address: TOKEN_ADDRESS,
-        abi: [parseAbiItem('function balanceOf(address account) external view returns (uint256)')],
-        functionName: 'balanceOf',
-        args: [AMM_ADDRESS],
-      });
-
-      const ethReserve = Number(ethBalance) / 1e18;
-      const tokenReserve = Number(tokenBalance || 0) / 1e18;
-
-      db.run(
-        "INSERT INTO pool_reserves (eth_reserve, token_reserve, timestamp) VALUES (?, ?, ?)",
-        [ethReserve, tokenReserve, Math.floor(Date.now() / 1000)],
-        (err) => {
-          if (err) console.error('Error updating pool reserves:', err);
-          else console.log(`Pool reserves updated: ${ethReserve} ETH, ${tokenReserve} tokens`);
-        }
-      );
-    } catch (err) {
-      const now = Date.now();
-      if (now - lastPoolErrorLog > 60000) {
-        console.error('Error fetching pool reserves:', err);
-        lastPoolErrorLog = now;
-      }
+    if (AMM_ADDRESS === '0x0' || TOKEN_ADDRESS === '0x0') {
+      console.warn('⚠️  Contract addresses not configured. Skipping indexer startup.');
+      return false;
     }
-  }, 30000);
 
-  console.log('Event listeners active.');
-} else {
-  console.warn('⚠️  Contract addresses not set. Indexer will not run.');
+    const ammCode = await client.getBytecode({ address: AMM_ADDRESS });
+    if (!ammCode) {
+      console.warn(`⚠️  AMM Contract not found at ${AMM_ADDRESS}. Have you deployed? Run 'npm run deploy:local'.`);
+      return false;
+    }
+    
+    return true;
+  } catch (err: any) {
+    console.warn(`⚠️  Cannot connect to blockchain node at ${process.env.RPC_URL}. Is it running?`);
+    return false;
+  }
 }
+
+// Event Listeners (Indexer)
+checkBlockchainConnection().then((isConnected) => {
+  if (isConnected) {
+    console.log('Starting event indexer...');
+
+    // Listen to SwapEthForToken events
+    client.watchContractEvent({
+      address: AMM_ADDRESS,
+      abi: [parseAbiItem('event SwapEthForToken(address indexed user, uint256 ethIn, uint256 tokenOut)')],
+      poll: true,
+      onLogs: (logs: any[]) => {
+        logs.forEach((log) => {
+          const { user, ethIn, tokenOut } = log.args;
+          db.run(
+            "INSERT INTO swaps (user, eth_in, token_out, direction, timestamp) VALUES (?, ?, ?, ?, ?)",
+            [user, Number(ethIn) / 1e18, Number(tokenOut) / 1e18, 'ETH_TO_TOKEN', Math.floor(Date.now() / 1000)],
+            (err) => {
+              if (err) console.error('Error inserting swap:', err);
+              else console.log(`Recorded swap: ${user} swapped ETH for token`);
+            }
+          );
+        });
+      },
+    });
+
+    // Listen to SwapTokenForEth events
+    client.watchContractEvent({
+      address: AMM_ADDRESS,
+      abi: [parseAbiItem('event SwapTokenForEth(address indexed user, uint256 tokenIn, uint256 ethOut)')],
+      poll: true,
+      onLogs: (logs: any[]) => {
+        logs.forEach((log) => {
+          const { user, tokenIn, ethOut } = log.args;
+          db.run(
+            "INSERT INTO swaps (user, token_in, eth_out, direction, timestamp) VALUES (?, ?, ?, ?, ?)",
+            [user, Number(tokenIn) / 1e18, Number(ethOut) / 1e18, 'TOKEN_TO_ETH', Math.floor(Date.now() / 1000)],
+            (err) => {
+              if (err) console.error('Error inserting swap:', err);
+              else console.log(`Recorded swap: ${user} swapped token for ETH`);
+            }
+          );
+        });
+      },
+    });
+
+    // Pool reserve update function
+    const updatePoolReserves = async () => {
+      try {
+        const ethBalance = await client.getBalance({ address: AMM_ADDRESS });
+        const tokenBalance: any = await client.readContract({
+          address: TOKEN_ADDRESS,
+          abi: [parseAbiItem('function balanceOf(address account) external view returns (uint256)')],
+          functionName: 'balanceOf',
+          args: [AMM_ADDRESS],
+        });
+
+        const ethReserve = Number(ethBalance) / 1e18;
+        const tokenReserve = Number(tokenBalance || 0) / 1e18;
+
+        db.run(
+          "INSERT INTO pool_reserves (eth_reserve, token_reserve, timestamp) VALUES (?, ?, ?)",
+          [ethReserve, tokenReserve, Math.floor(Date.now() / 1000)],
+          (err) => {
+            if (err) console.error('Error updating pool reserves:', err);
+            else console.log(`Pool reserves updated: ${ethReserve} ETH, ${tokenReserve} tokens`);
+          }
+        );
+      } catch (err: any) {
+        const now = Date.now();
+        if (now - lastPoolErrorLog > 60000) {
+          console.warn('⚠️  Error fetching pool reserves. Is the node running?');
+          lastPoolErrorLog = now;
+        }
+      }
+    };
+
+    // Initial update
+    updatePoolReserves();
+
+    // Periodic pool reserves update (every 30 sec)
+    setInterval(updatePoolReserves, 30000);
+
+    console.log('Event listeners active.');
+  }
+});

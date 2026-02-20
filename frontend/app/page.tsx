@@ -3,12 +3,13 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useAccount, useBalance, useReadContract } from 'wagmi';
 import { parseAbi, formatEther } from 'viem';
+import config from './contracts-config.json';
 
 const TOKEN_ABI = parseAbi([
   'function balanceOf(address account) external view returns (uint256)'
 ]);
 
-const TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_MINERAL_TOKEN_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`;
+const TOKEN_ADDRESS = (config.contracts.MineralToken || process.env.NEXT_PUBLIC_MINERAL_TOKEN_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`;
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 export default function Home() {

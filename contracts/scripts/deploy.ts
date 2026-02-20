@@ -38,14 +38,17 @@ async function main() {
   const ammAddress = await amm.getAddress();
   console.log("SimpleAMM deployed to:", ammAddress);
 
-  // 6. Whitelist AMM (so it can hold tokens)
-  const whitelistTx = await registry.setWhitelist(ammAddress, true);
-  await whitelistTx.wait();
-  console.log("AMM whitelisted in ComplianceRegistry");
+  // 6. Whitelist AMM (so it can hold tokens) and Deployer
+  const whitelistAmmTx = await registry.setWhitelist(ammAddress, true);
+  await whitelistAmmTx.wait();
+  const whitelistDeployerTx = await registry.setWhitelist(deployer.address, true);
+  await whitelistDeployerTx.wait();
+  console.log("AMM and Deployer whitelisted in ComplianceRegistry");
 
-  // 7. Optional: seed initial liquidity (requires env vars)
-  const initEth = process.env.INIT_LIQUIDITY_ETH;
-  const initToken = process.env.INIT_LIQUIDITY_TOKEN;
+  // 7. Seed initial liquidity (default on localhost)
+  const isLocalhost = network.name === "localhost" || network.name === "hardhat";
+  const initEth = process.env.INIT_LIQUIDITY_ETH || (isLocalhost ? "10" : "");
+  const initToken = process.env.INIT_LIQUIDITY_TOKEN || (isLocalhost ? "1000" : "");
 
   if (initEth && initToken) {
     const ethAmount = ethers.parseEther(initEth);

@@ -10,6 +10,7 @@ const REGISTRY_ABI = parseAbi([
   'function setBlacklist(address user, bool status) external',
   'function isWhitelisted(address user) external view returns (bool)',
   'function isBlacklisted(address user) external view returns (bool)',
+  'function owner() external view returns (address)',
 ]);
 
 const TOKEN_ABI = parseAbi([
@@ -34,6 +35,15 @@ export default function AdminPage() {
     hash,
     confirmations: 1,
   });
+
+  // Check owner
+  const { data: ownerAddress } = useReadContract({
+    address: REGISTRY_ADDRESS,
+    abi: REGISTRY_ABI,
+    functionName: 'owner',
+  });
+
+  const isOwner = address && ownerAddress && address.toLowerCase() === ownerAddress.toLowerCase();
 
   // Check whitelist status
   const { data: isWhitelisted, refetch: refetchWhitelist } = useReadContract({
@@ -121,6 +131,13 @@ export default function AdminPage() {
       <h1 className="text-3xl font-bold mb-6">Admin Panel</h1>
       <p className="text-sm opacity-50 mb-4">Connected as: {address?.slice(0, 6)}...{address?.slice(-4)}</p>
 
+      {!isOwner && address && (
+        <div className="alert alert-warning mb-6">
+          <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+          <span>Warning: You are not the contract owner. You cannot perform admin actions. Please connect with the deployer account.</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* KYC Management */}
         <div className="card bg-base-100 shadow-xl">
@@ -161,21 +178,21 @@ export default function AdminPage() {
               <button 
                 className="btn btn-success w-full" 
                 onClick={() => handleWhitelist(true)}
-                disabled={isPending}
+                disabled={isPending || !isOwner}
               >
                 Whitelist
               </button>
               <button 
                 className="btn btn-warning w-full" 
                 onClick={() => handleWhitelist(false)}
-                disabled={isPending}
+                disabled={isPending || !isOwner}
               >
                 Revoke Whitelist
               </button>
               <button 
                 className="btn btn-error w-full" 
                 onClick={() => handleBlacklist(true)}
-                disabled={isPending}
+                disabled={isPending || !isOwner}
               >
                 Blacklist
               </button>
