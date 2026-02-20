@@ -19,7 +19,7 @@ const TOKEN_ABI = parseAbi([
 
 const AMM_ADDRESS = (config.contracts.SimpleAMM || process.env.NEXT_PUBLIC_AMM_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`;
 const TOKEN_ADDRESS = (config.contracts.MineralToken || process.env.NEXT_PUBLIC_MINERAL_TOKEN_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`;
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3101';
 
 interface SwapRecord {
   id: number;
