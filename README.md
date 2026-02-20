@@ -83,24 +83,25 @@ Interroger directement la blockchain pour l'historique des transactions est lent
 ### Prérequis
 
 * Node.js v20+
-* Docker & Docker Compose (recommandé pour une installation rapide)
-* MetaMask (configuré sur Localhost 8545 ou Sepolia)
+* MetaMask/Rabby (configuré sur Sepolia ou Localhost)
 
-### Option A : Déploiement rapide avec Docker
+> 📝 Docker n’est pas fourni dans ce dépôt (pas de docker-compose). Utilisez le lancement **manuel** ou **PM2**.
+
+### Option A : Lancement en production avec PM2
 
 ```bash
-docker-compose up --build
-
+pm2 start ecosystem.config.js
+pm2 save
+pm2 startup
 ```
 
-* **Frontend :** `http://localhost:3000`
-* **Backend :** `http://localhost:3001`
-* **Nœud RPC :** `http://localhost:8545`
+* **Frontend :** `http://localhost:3100`
+* **Backend :** `http://localhost:3101`
 
 ### Option B : Installation manuelle pour développement
 
 1. **Installer les dépendances :** `npm install`
-2. **Lancer la blockchain locale :**
+2. **Lancer la blockchain locale (optionnel) :**
 ```bash
 cd contracts
 npx hardhat node
@@ -125,10 +126,14 @@ npm run deploy:local
 
 ## 📖 Utilisation (How to Use)
 
-### 1. Configuration de MetaMask
+### 1. Configuration de MetaMask/Rabby
 
-Connectez votre portefeuille au réseau local :
+**Sepolia (recommandé)**
+* **RPC URL :** `https://sepolia.infura.io/v3/<YOUR_KEY>` ou `https://rpc.sepolia.org`
+* **Chain ID :** `11155111`
+* **Symbole :** `ETH`
 
+**Local Hardhat (optionnel)**
 * **RPC URL :** `http://localhost:8545`
 * **Chain ID :** `31337`
 * **Symbole :** `ETH`
@@ -165,7 +170,6 @@ Pour tester les fonctionnalités d'administration (Mint, Whitelist) :
 │   └── scripts/        # Déploiement et maintenance
 ├── backend/            # API Express & Indexeur Viem/SQLite
 ├── frontend/           # Interface Next.js (Tailwind + DaisyUI)
-└── docker-compose.yml  # Orchestration de l'ensemble de la pile
 
 ```
 
