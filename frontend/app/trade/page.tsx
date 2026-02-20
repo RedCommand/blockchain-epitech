@@ -102,10 +102,23 @@ export default function TradePage() {
   useEffect(() => {
     const fetchPoolReserves = async () => {
       try {
-        const res = await fetch(`${BACKEND_URL}/api/pool-reserves`);
-        if (res.ok) {
-          const data = await res.json();
-          setPoolReserves(data);
+        const candidates = [
+          `${BACKEND_URL}/api/pool-reserves`,
+          'http://localhost:3101/api/pool-reserves',
+          'http://127.0.0.1:3101/api/pool-reserves',
+        ];
+        
+        for (const url of candidates) {
+          try {
+            const res = await fetch(url, { cache: 'no-store' });
+            if (!res.ok) continue;
+            const data = await res.json();
+            console.log('Pool reserves fetched:', data);
+            setPoolReserves(data);
+            break;
+          } catch {
+            // try next candidate
+          }
         }
       } catch (err) {
         console.error('Error fetching pool reserves:', err);
@@ -166,7 +179,16 @@ export default function TradePage() {
 
   // Calculate output amount when input changes
   useEffect(() => {
-    if (!debouncedAmountIn || !poolReserves) {
+    // Si pas de réserves chargées, on attend
+    if (!poolReserves) {
+      setAmountOut('');
+      setMinOut('0');
+      setPoolEmpty(false);
+      return;
+    }
+
+    // Si l'utilisateur n'a rien entré
+    if (!debouncedAmountIn || debouncedAmountIn === '') {
       setAmountOut('');
       setMinOut('0');
       setPoolEmpty(false);
@@ -174,14 +196,26 @@ export default function TradePage() {
     }
 
     const inAmount = parseFloat(debouncedAmountIn);
-    const ethReserve = poolReserves.eth_reserve;
-    const tokenReserve = poolReserves.token_reserve;
+    const ethReserve = poolReserves.eth_reserve || 0;
+    const tokenReserve = poolReserves.token_reserve || 0;
     const fee = 0.003; // 0.3% fee
 
-    if (!isFinite(inAmount) || inAmount <= 0 || ethReserve <= 0 || tokenReserve <= 0) {
+    console.log('Calculating swap:', { inAmount, ethReserve, tokenReserve, direction });
+
+    // Vérifier si la pool est vraiment vide
+    if (ethReserve <= 0 || tokenReserve <= 0) {
       setAmountOut('');
       setMinOut('0');
       setPoolEmpty(true);
+      console.warn('Pool is empty:', { ethReserve, tokenReserve });
+      return;
+    }
+
+    // Vérifier si le montant est valide
+    if (!isFinite(inAmount) || inAmount <= 0) {
+      setAmountOut('');
+      setMinOut('0');
+      setPoolEmpty(false);
       return;
     }
 
@@ -196,6 +230,7 @@ export default function TradePage() {
       output = (amountInWithFee * ethReserve) / (tokenReserve + amountInWithFee);
     }
 
+    console.log('Swap output calculated:', output);
     setAmountOut(output.toFixed(6));
     setMinOut((output * 0.95).toFixed(6)); // 5% slippage
     setPoolEmpty(false);
@@ -297,7 +332,7 @@ export default function TradePage() {
               className="input input-bordered text-lg font-bold" 
               value={amountOut} 
               readOnly
-              placeholder="Calculating..."
+              placeholder={poolEmpty ? "Pool empty" : amountIn ? "Calculating..." : "Enter amount above"}
               type="number"
             />
             <div className="label">
